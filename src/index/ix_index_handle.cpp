@@ -9,7 +9,10 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 #include "ix_index_handle.h"
+#include <sys/types.h>
+#include <cstring>
 
+#include "defs.h"
 #include "ix_scan.h"
 
 /**
@@ -23,7 +26,18 @@ int IxNodeHandle::lower_bound(const char *target) const {
     // 查找当前节点中第一个大于等于target的key，并返回key的位置给上层
     // 提示: 可以采用多种查找方式，如顺序遍历、二分查找等；使用ix_compare()函数进行比较
 
-    return -1;
+    int hi = this->get_size();
+    int lo = 0;
+    while(lo < hi) {
+        int mid = (lo + hi) / 2;
+        if (ix_compare(this->get_key(mid), target, this->file_hdr->col_types_, this->file_hdr->col_lens_) >= 0) {
+            hi = mid;
+        } else {
+            lo = mid;
+        }
+    }
+
+    return lo;
 }
 
 /**
@@ -37,7 +51,18 @@ int IxNodeHandle::upper_bound(const char *target) const {
     // 查找当前节点中第一个大于target的key，并返回key的位置给上层
     // 提示: 可以采用多种查找方式：顺序遍历、二分查找等；使用ix_compare()函数进行比较
 
-    return -1;
+    int hi = get_size();
+    int lo = 0;
+    while(lo < hi) {
+        int mid = (lo + hi) / 2;
+        if (ix_compare(this->get_key(mid), target, file_hdr->col_types_, file_hdr->col_lens_) > 0) {
+            hi = mid;
+        } else {
+            lo = mid;
+        }
+    }
+
+    return lo;
 }
 
 /**
@@ -54,7 +79,11 @@ bool IxNodeHandle::leaf_lookup(const char *key, Rid **value) {
     // 2. 判断目标key是否存在
     // 3. 如果存在，获取key对应的Rid，并赋值给传出参数value
     // 提示：可以调用lower_bound()和get_rid()函数。
-
+    int idx = lower_bound(key);
+    if(idx < get_size() && ix_compare(get_key(idx), key, file_hdr->col_types_, file_hdr->col_lens_) == 0) {
+        *value = get_rid(idx);
+        return true;
+    }
     return false;
 }
 
@@ -68,8 +97,8 @@ page_id_t IxNodeHandle::internal_lookup(const char *key) {
     // 1. 查找当前非叶子节点中目标key所在孩子节点（子树）的位置
     // 2. 获取该孩子节点（子树）所在页面的编号
     // 3. 返回页面编号
-
-    return -1;
+    int idx = upper_bound(key);
+    return value_at(idx);
 }
 
 /**
@@ -92,7 +121,17 @@ void IxNodeHandle::insert_pairs(int pos, const char *key, const Rid *rid, int n)
     // 2. 通过key获取n个连续键值对的key值，并把n个key值插入到pos位置
     // 3. 通过rid获取n个连续键值对的rid值，并把n个rid值插入到pos位置
     // 4. 更新当前节点的键数量
+    int num_key = get_size();
+    if(pos >= num_key || pos + n > get_max_size()) {
+        return;
+    }
+    memmove(get_key(pos+n), get_key(pos), (num_key - pos)*file_hdr->col_tot_len_);
+    memmove(get_rid(pos + n), get_rid(pos), (num_key - pos) * sizeof(Rid));
 
+    memcpy(get_key(pos), key, n * file_hdr->col_tot_len_);
+    memcpy(get_rid(pos), rid, n * sizeof(Rid));
+
+    set_size(num_key + n);
 }
 
 /**
@@ -108,8 +147,12 @@ int IxNodeHandle::insert(const char *key, const Rid &value) {
     // 2. 如果key重复则不插入
     // 3. 如果key不重复则插入键值对
     // 4. 返回完成插入操作之后的键值对数量
-
-    return -1;
+    int idx = lower_bound(key);
+    if(idx < get_size() && ix_compare(get_key(idx), key, file_hdr->col_types_, file_hdr->col_lens_) == 0) {
+        return get_size();
+    }
+    insert_pairs(idx, idx, &value, 1);
+    return get_size();
 }
 
 /**
@@ -122,7 +165,11 @@ void IxNodeHandle::erase_pair(int pos) {
     // 1. 删除该位置的key
     // 2. 删除该位置的rid
     // 3. 更新结点的键值对数量
+    int num_key = get_size();
+    memmove(get_key(pos), get_key(pos + 1), (num_key - pos - 1) * file_hdr->col_tot_len_);
+    memmove(get_rid(pos), get_rid(pos + 1), (num_key - pos - 1) * sizeof(Rid));
 
+    set_size(num_key - 1);
 }
 
 /**
@@ -136,8 +183,12 @@ int IxNodeHandle::remove(const char *key) {
     // 1. 查找要删除键值对的位置
     // 2. 如果要删除的键值对存在，删除键值对
     // 3. 返回完成删除操作后的键值对数量
+    int idx = lower_bound(key);
+    if(idx < get_size() && ix_compare(get_key(idx), key, file_hdr->col_types_, file_hdr->col_lens_) == 0) {
+        erase_pair(idx);
+    }
+    return get_size();
 
-    return -1;
 }
 
 IxIndexHandle::IxIndexHandle(DiskManager *disk_manager, BufferPoolManager *buffer_pool_manager, int fd)
