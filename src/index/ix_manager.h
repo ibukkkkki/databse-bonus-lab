@@ -127,7 +127,7 @@ class IxManager {
             disk_manager_->write_page(fd, IX_INIT_ROOT_PAGE, page_buf, PAGE_SIZE);
         }
 
-        disk_manager_->set_fd2pageno(fd, IX_INIT_NUM_PAGES - 1);  // DEBUG
+        disk_manager_->set_fd2pageno(fd, IX_INIT_NUM_PAGES);
 
         // Close index file
         disk_manager_->close_file(fd);

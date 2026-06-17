@@ -13,6 +13,8 @@ See the Mulan PSL v2 for more details. */
 #include "ix_defs.h"
 #include "ix_index_handle.h"
 
+#include <shared_mutex>
+
 // class IxIndexHandle;
 
 // 用于遍历叶子结点
@@ -23,10 +25,11 @@ class IxScan : public RecScan {
     Iid iid_;  // 初始为lower（用于遍历的指针）
     Iid end_;  // 初始为upper
     BufferPoolManager *bpm_;
+    std::shared_lock<std::shared_mutex> lock_;
 
    public:
     IxScan(const IxIndexHandle *ih, const Iid &lower, const Iid &upper, BufferPoolManager *bpm)
-        : ih_(ih), iid_(lower), end_(upper), bpm_(bpm) {}
+        : ih_(ih), iid_(lower), end_(upper), bpm_(bpm), lock_(ih->root_latch_) {}
 
     void next() override;
 

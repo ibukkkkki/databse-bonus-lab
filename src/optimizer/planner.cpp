@@ -30,7 +30,7 @@ See the Mulan PSL v2 for more details. */
 //  SeqScan，保证正确性；性能代价正是 TPC-C 性能优化的起点之一。
 //  当学生完成 Lab2 后，把下面 force_seq_scan 改回 false 即可启用索引扫描。
 bool Planner::get_index_cols(std::string tab_name, std::vector<Condition> curr_conds, std::vector<std::string>& index_col_names) {
-    constexpr bool force_seq_scan = true;
+    constexpr bool force_seq_scan = false;
     if (force_seq_scan) {
         index_col_names.clear();
         return false;

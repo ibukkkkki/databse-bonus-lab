@@ -90,38 +90,10 @@ if ! (echo > /dev/tcp/127.0.0.1/$PORT) 2>/dev/null; then
 fi
 log "rmdb pid=$SRV_PID listening on $PORT"
 
-# ---------- 4. 后台启 driver ----------
-log "launching driver in background: -t $T -d $D -S $S (预计 ${D} 秒 + 数据扫描)"
-: > "$LOG"
-nohup setsid "$BIN/tpcc_driver" \
-    -h 127.0.0.1 -p $PORT -w 1 -t $T -d $D -S $S \
-    > "$LOG" 2>&1 < /dev/null & disown
-sleep 1
-DRIVER_PID=$(pgrep -f "tpcc_driver -h 127.0.0.1 -p $PORT" | head -1 || echo "")
-log "driver pid=$DRIVER_PID"
-
-# ---------- 5. 心跳轮询（每 25 秒报活，绕开 30 秒静默检测） ----------
-deadline=$(( $(date +%s) + D + 180 ))   # 留 3 分钟 buffer
-while true; do
-    if grep -q "TPC-C Result" "$LOG" 2>/dev/null; then
-        log "✓ result ready"
-        break
-    fi
-    if ! pgrep -f "tpcc_driver -h 127.0.0.1 -p $PORT" >/dev/null; then
-        log "driver 已退出（看 $LOG 末尾确认是否正常）"
-        break
-    fi
-    if [[ $(date +%s) -gt $deadline ]]; then
-        log "⚠️ 超时（driver 在 d+180s 后仍存活），SIGINT kill ..."
-        pkill -INT -f "tpcc_driver -h 127.0.0.1 -p $PORT" 2>/dev/null || true
-        sleep 5
-        pkill -KILL -f "tpcc_driver -h 127.0.0.1 -p $PORT" 2>/dev/null || true
-        break
-    fi
-    last_line=$(tail -1 "$LOG" 2>/dev/null | cut -c1-80)
-    log "alive, waiting ... (driver.log tail: ${last_line:-<empty>})"
-    sleep 25
-done
+# ---------- 4. 跑 driver ----------
+log "running driver: -t $T -d $D -S $S ..."
+"$BIN/tpcc_driver" -h 127.0.0.1 -p $PORT -w 1 -t $T -d $D -S $S | tee "$LOG"
+log "driver finished."
 
 # ---------- 6. 优雅关 server ----------
 log "stopping rmdb ..."

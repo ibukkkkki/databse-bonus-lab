@@ -1,25 +1,27 @@
+find_package(GTest REQUIRED)
+
 # storage test
 add_executable(disk_manager_test storage/disk_manager_test.cpp)
-target_link_libraries(disk_manager_test storage gtest_main)
+target_link_libraries(disk_manager_test storage GTest::gtest_main)
 
 add_executable(lru_replacer_test storage/lru_replacer_test.cpp)
-target_link_libraries(lru_replacer_test lru_replacer gtest_main)
+target_link_libraries(lru_replacer_test lru_replacer GTest::gtest_main)
 
 add_executable(buffer_pool_manager_test storage/buffer_pool_manager_test.cpp)
-target_link_libraries(buffer_pool_manager_test storage gtest_main)
+target_link_libraries(buffer_pool_manager_test storage GTest::gtest_main)
 
 add_executable(record_manager_test storage/record_manager_test.cpp)
-target_link_libraries(record_manager_test record gtest_main)
+target_link_libraries(record_manager_test record GTest::gtest_main)
 
 # index test
 add_executable(b_plus_tree_insert_test index/b_plus_tree_insert_test.cpp)
-target_link_libraries(b_plus_tree_insert_test system index gtest gtest_main)
+target_link_libraries(b_plus_tree_insert_test system index GTest::gtest_main)
 
 add_executable(b_plus_tree_delete_test index/b_plus_tree_delete_test.cpp)
-target_link_libraries(b_plus_tree_delete_test system index gtest gtest_main)
+target_link_libraries(b_plus_tree_delete_test system index GTest::gtest_main)
 
 add_executable(b_plus_tree_concurrent_test index/b_plus_tree_concurrent_test.cpp)
-target_link_libraries(b_plus_tree_concurrent_test system index gtest gtest_main)
+target_link_libraries(b_plus_tree_concurrent_test system index GTest::gtest_main)
 
 # query test
 add_executable(query_test query/query_test.cpp)

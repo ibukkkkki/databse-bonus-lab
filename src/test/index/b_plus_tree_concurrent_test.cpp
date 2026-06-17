@@ -69,6 +69,10 @@ class BPlusTreeConcurrentTest : public ::testing::Test {
         sm_->create_table(TEST_FILE_NAME, coldef, nullptr);
         sm_->create_index(TEST_FILE_NAME, TEST_COL, nullptr);
         assert(ix_manager_->exists(TEST_FILE_NAME, TEST_COL));
+        // 关闭并从sm_中移除，防止因文件已被打开而无法重复打开
+        auto ix_name = ix_manager_->get_index_name(TEST_FILE_NAME, TEST_COL);
+        ix_manager_->close_index(sm_->ihs_.at(ix_name).get());
+        sm_->ihs_.erase(ix_name);
         // 打开测试文件
         ih_ = ix_manager_->open_index(TEST_FILE_NAME, TEST_COL);
         assert(ih_ != nullptr);

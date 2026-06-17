@@ -12,6 +12,8 @@ See the Mulan PSL v2 for more details. */
 
 #include "ix_defs.h"
 #include "transaction/transaction.h"
+#include <iostream>
+#include <shared_mutex>
 
 enum class Operation { FIND = 0, INSERT, DELETE };  // 三种操作：查找、插入、删除
 
@@ -152,7 +154,18 @@ class IxNodeHandle {
                 break;
             }
         }
-        assert(rid_idx < page_hdr->num_key);
+        if (rid_idx >= page_hdr->num_key) {
+            std::cerr << "find_child failed! Parent page_no: " << get_page_no()
+                      << ", num_key: " << page_hdr->num_key
+                      << ", is_leaf: " << page_hdr->is_leaf
+                      << ", searching for child: " << child->get_page_no() << "\n";
+            std::cerr << "Parent children: ";
+            for (int i = 0; i < page_hdr->num_key; i++) {
+                std::cerr << get_rid(i)->page_no << " ";
+            }
+            std::cerr << "\n";
+            assert(false);
+        }
         return rid_idx;
     }
 };
@@ -167,7 +180,7 @@ class IxIndexHandle {
     BufferPoolManager *buffer_pool_manager_;
     int fd_;                                    // 存储B+树的文件
     IxFileHdr* file_hdr_;                       // 存了root_page，但其初始化为2（第0页存FILE_HDR_PAGE，第1页存LEAF_HEADER_PAGE）
-    std::mutex root_latch_;
+    mutable std::shared_mutex root_latch_;
 
    public:
     IxIndexHandle(DiskManager *disk_manager, BufferPoolManager *buffer_pool_manager, int fd);
