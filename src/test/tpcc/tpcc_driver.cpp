@@ -66,20 +66,15 @@ public:
 
         cli_->send_sql("BEGIN;");
 
-        // 1. 提前锁住 district 热点行，避免 SELECT 后 S->X 升级冲突
-        cli_->send_sql(
-            "UPDATE district SET d_next_o_id=d_next_o_id+0 WHERE d_w_id=" + std::to_string(w_id) +
-            " AND d_id=" + std::to_string(d_id) + ";");
-
-        // 2. 取 district 的 d_next_o_id
+        // 1. 取 district 的 d_next_o_id，并加 X 锁避免并发冲突
         auto resp = cli_->send_sql(
             "SELECT d_next_o_id FROM district WHERE d_w_id=" + std::to_string(w_id) +
-            " AND d_id=" + std::to_string(d_id) + ";");
+            " AND d_id=" + std::to_string(d_id) + " FOR UPDATE;");
         auto rows = SqlClient::parse_rows(resp);
         if (rows.empty()) { cli_->send_sql("ABORT;"); return false; }
         int o_id = std::atoi(rows[0][0].c_str());
 
-        // 3. 自增 d_next_o_id
+        // 2. 自增 d_next_o_id
         cli_->send_sql(
             std::string("UPDATE district SET d_next_o_id=d_next_o_id+1") +
             " WHERE d_w_id=" + std::to_string(w_id) + " AND d_id=" + std::to_string(d_id) + ";");
@@ -97,12 +92,19 @@ public:
             std::to_string(o_id) + "," + std::to_string(d_id) + "," + std::to_string(w_id) + ");");
 
         // 6. 每个 ol：取 stock，扣 quantity，写 order_line
+        std::vector<int> i_ids;
+        i_ids.reserve(ol_cnt);
         for (int ln = 1; ln <= ol_cnt; ++ln) {
-            int i_id = rg_.randint(1, n_items_);
+            i_ids.push_back(rg_.randint(1, n_items_));
+        }
+        std::sort(i_ids.begin(), i_ids.end());
+
+        for (int ln = 1; ln <= ol_cnt; ++ln) {
+            int i_id = i_ids[ln - 1];
             // 取 stock.s_quantity
             auto r = cli_->send_sql(
                 "SELECT s_quantity FROM stock WHERE s_w_id=" + std::to_string(w_id) +
-                " AND s_i_id=" + std::to_string(i_id) + ";");
+                " AND s_i_id=" + std::to_string(i_id) + " FOR UPDATE;");
             auto rs = SqlClient::parse_rows(r);
             if (rs.empty()) { cli_->send_sql("ABORT;"); return false; }
             int qty = std::atoi(rs[0][0].c_str());

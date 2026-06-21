@@ -139,7 +139,7 @@ class IndexScanExecutor : public AbstractExecutor {
         }
         // 如果所有列都被等值覆盖，upper 需要使用 upper_bound 语义。
         // 这里统一调用 lower_bound(lower_key) 和 upper_bound(upper_key)。
-        use_record_locks_ = prefix_eq_count == index_col_names_.size();
+        use_record_locks_ = use_index_lookup;
 
         if (context_ != nullptr && context_->lock_mgr_ != nullptr && context_->txn_ != nullptr) {
             if (use_record_locks_) {
