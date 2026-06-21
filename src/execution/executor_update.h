@@ -68,14 +68,19 @@ class UpdateExecutor : public AbstractExecutor {
                     continue;
                 }
                 auto ih = sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name_, index.cols)).get();
-                char *key = new char[index.col_tot_len];
+                char stack_key[512];
+                char *key = stack_key;
+                std::unique_ptr<char[]> heap_key;
+                if (index.col_tot_len > 512) {
+                    heap_key = std::make_unique<char[]>(index.col_tot_len);
+                    key = heap_key.get();
+                }
                 int offset = 0;
                 for (size_t j = 0; j < (size_t)index.col_num; ++j) {
                     memcpy(key + offset, rec->data + index.cols[j].offset, index.cols[j].len);
                     offset += index.cols[j].len;
                 }
                 ih->delete_entry(key, context_->txn_);
-                delete[] key;
             }
             // 更新记录
             for (auto &set_clause : set_clauses_) {
@@ -112,14 +117,19 @@ class UpdateExecutor : public AbstractExecutor {
                     continue;
                 }
                 auto ih = sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name_, index.cols)).get();
-                char *key = new char[index.col_tot_len];
+                char stack_key[512];
+                char *key = stack_key;
+                std::unique_ptr<char[]> heap_key;
+                if (index.col_tot_len > 512) {
+                    heap_key = std::make_unique<char[]>(index.col_tot_len);
+                    key = heap_key.get();
+                }
                 int offset = 0;
                 for (size_t j = 0; j < (size_t)index.col_num; ++j) {
                     memcpy(key + offset, rec->data + index.cols[j].offset, index.cols[j].len);
                     offset += index.cols[j].len;
                 }
                 ih->insert_entry(key, rid, context_->txn_);
-                delete[] key;
             }
         }
         return nullptr;

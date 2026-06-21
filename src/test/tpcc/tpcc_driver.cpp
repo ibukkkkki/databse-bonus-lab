@@ -25,6 +25,7 @@
 #include <thread>
 #include <vector>
 #include <algorithm>
+#include <map>
 
 using namespace tpcc;
 
@@ -176,10 +177,11 @@ public:
             "SELECT c_balance, c_first, c_last FROM customer WHERE c_w_id=" +
             std::to_string(w_id) + " AND c_d_id=" + std::to_string(d_id) +
             " AND c_id=" + std::to_string(c_id) + ";");
-        // 读取该客户的所有订单（标准 spec 只要最新一笔，受限于 SQL 子集这里取所有再客户端选最大）
+        // 读取该客户的所有订单（标准 spec 只要最新一笔，受限于 SQL 子集这里取该客户的所有订单再客户端选最大）
         auto rows = SqlClient::parse_rows(cli_->send_sql(
             "SELECT o_id, o_carrier_id, o_ol_cnt FROM orders WHERE o_w_id=" +
-            std::to_string(w_id) + " AND o_d_id=" + std::to_string(d_id) + ";"));
+            std::to_string(w_id) + " AND o_d_id=" + std::to_string(d_id) +
+            " AND o_c_id=" + std::to_string(c_id) + ";"));
         // 简化：不 filter c_id（缺等值索引就退化为全扫描），仅打印行数
         // 真正的 TPC-C 要 SELECT MAX(o_id) WHERE o_c_id = c_id；改进留给学生
         cli_->send_sql("COMMIT;");
@@ -191,13 +193,25 @@ public:
         int w_id = rg_.randint(1, W_);
         int carrier = rg_.randint(1, 10);
         cli_->send_sql("BEGIN;");
+        
+        // 优化：一次拉取整个仓库的所有未交付订单，在客户端内存中查找各分区的最小 no_o_id，减少 9 次 SQL SELECT 往返开销
+        auto rs = SqlClient::parse_rows(cli_->send_sql(
+            "SELECT no_d_id, no_o_id FROM new_orders WHERE no_w_id=" + std::to_string(w_id) + ";"));
+        
+        std::map<int, int> min_o_ids; // d_id -> min_o_id
+        for (const auto &row : rs) {
+            if (row.size() < 2) continue;
+            int d_id = std::atoi(row[0].c_str());
+            int o_id = std::atoi(row[1].c_str());
+            if (min_o_ids.find(d_id) == min_o_ids.end() || o_id < min_o_ids[d_id]) {
+                min_o_ids[d_id] = o_id;
+            }
+        }
+
         for (int d_id = 1; d_id <= n_dist_; ++d_id) {
-            // 取该区任意一个 new_order（实际 TPC-C 要最小 no_o_id；这里取扫描结果第一行）
-            auto rs = SqlClient::parse_rows(cli_->send_sql(
-                "SELECT no_o_id FROM new_orders WHERE no_w_id=" + std::to_string(w_id) +
-                " AND no_d_id=" + std::to_string(d_id) + ";"));
-            if (rs.empty()) continue;
-            int no_o_id = std::atoi(rs[0][0].c_str());
+            auto it = min_o_ids.find(d_id);
+            if (it == min_o_ids.end()) continue;
+            int no_o_id = it->second;
             // 删 new_orders
             cli_->send_sql(
                 "DELETE FROM new_orders WHERE no_w_id=" + std::to_string(w_id) +
@@ -230,13 +244,11 @@ public:
             "SELECT d_next_o_id FROM district WHERE d_w_id=" + std::to_string(w_id) +
             " AND d_id=" + std::to_string(d_id) + ";"));
         if (rd.empty()) { cli_->send_sql("ABORT;"); return false; }
-        // 简化：不做 ol_o_id 范围扫描（受限于 SQL），仅做一次 stock 扫描计数
+        // 优化：在服务端进行过滤，只拉取低于阈值的记录，极大减少数据传输量
         auto rs = SqlClient::parse_rows(cli_->send_sql(
-            "SELECT s_quantity FROM stock WHERE s_w_id=" + std::to_string(w_id) + ";"));
-        int low = 0;
-        for (auto &row : rs) {
-            if (std::atoi(row[0].c_str()) < threshold) ++low;
-        }
+            "SELECT s_quantity FROM stock WHERE s_w_id=" + std::to_string(w_id) +
+            " AND s_quantity<" + std::to_string(threshold) + ";"));
+        int low = rs.size();
         (void)low;
         cli_->send_sql("COMMIT;");
         return true;
