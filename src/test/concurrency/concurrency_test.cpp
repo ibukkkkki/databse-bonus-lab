@@ -19,12 +19,22 @@ void TestCaseAnalyzer::analyze_test_case() {
     crash_operation->sql = "crash";
     crash_operation->txn_id = -1;
 
-    while(std::getline(infile, line)) {
+    auto get_clean_line = [&](std::string& l) -> bool {
+        if (std::getline(infile, l)) {
+            if (!l.empty() && l.back() == '\r') {
+                l.pop_back();
+            }
+            return true;
+        }
+        return false;
+    };
+
+    while(get_clean_line(line)) {
         if(line.find("preload") != std::string::npos) {
             int count = atoi(line.substr(line.find(" ") + 1).c_str());
             while(count) {
                 --count;
-                std::getline(infile, line);
+                get_clean_line(line);
                 preload.push_back(line);
             }
         }
@@ -37,7 +47,7 @@ void TestCaseAnalyzer::analyze_test_case() {
             int count = atoi(line.substr(line.find(" ") + 1).c_str());
             while(count) {
                 --count;
-                std::getline(infile, line);
+                get_clean_line(line);
                 Operation* operation = new Operation();
                 txn->operations.push_back(operation);
                 analyze_operation(operation, line);
@@ -49,7 +59,7 @@ void TestCaseAnalyzer::analyze_test_case() {
             int count = atoi(line.substr(line.find(" ") + 1).c_str());
             while(count) {
                 --count;
-                std::getline(infile, line);
+                get_clean_line(line);
                 if(strcmp(line.c_str(), "crash") == 0) {
                     // permutation->operations.push_back(crash_operation);
                     break;

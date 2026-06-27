@@ -29,9 +29,8 @@ def get_output_name(test_name):
 def build():
     # root
     os.chdir("../../../")
-    if os.path.exists("./build"):
-        os.system("rm -rf build")
-    os.mkdir("./build")
+    if not os.path.exists("./build"):
+        os.mkdir("./build")
     os.chdir("./build")
     os.system("cmake ..")
     os.system("make rmdb -j4")
