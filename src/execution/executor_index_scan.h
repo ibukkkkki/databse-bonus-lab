@@ -137,9 +137,8 @@ class IndexScanExecutor : public AbstractExecutor {
             prefix_eq_offset = -1;  // sentinel
             break;
         }
-        // 如果所有列都被等值覆盖，upper 需要使用 upper_bound 语义。
-        // 这里统一调用 lower_bound(lower_key) 和 upper_bound(upper_key)。
-        use_record_locks_ = use_index_lookup;
+        // 如果所有列都被等值覆盖，才可以只使用行级锁；否则（范围查询）必须锁全表以防止幻读。
+        use_record_locks_ = use_index_lookup && (prefix_eq_count == index_col_names_.size());
 
         if (context_ != nullptr && context_->lock_mgr_ != nullptr && context_->txn_ != nullptr) {
             if (use_record_locks_) {
