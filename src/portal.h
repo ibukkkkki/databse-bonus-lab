@@ -68,11 +68,8 @@ class Portal
                 case T_select:
                 {
                     std::shared_ptr<ProjectionPlan> p = std::dynamic_pointer_cast<ProjectionPlan>(x->subplan_);
-                    ScanLockMode mode = x->for_update_ ? ScanLockMode::WRITE : ScanLockMode::READ;
-                    if (sm_manager_->db_.get_name() == "tpcc_db" && !x->for_update_) {
-                        mode = ScanLockMode::NONE;
-                    }
-                    std::unique_ptr<AbstractExecutor> root = convert_plan_executor(p, context, mode);
+                    std::unique_ptr<AbstractExecutor> root = convert_plan_executor(
+                        p, context, x->for_update_ ? ScanLockMode::WRITE : ScanLockMode::READ);
                     return std::make_shared<PortalStmt>(PORTAL_ONE_SELECT, std::move(p->sel_cols_), std::move(root), plan);
                 }
                     

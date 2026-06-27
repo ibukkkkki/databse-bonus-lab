@@ -15,7 +15,6 @@ See the Mulan PSL v2 for more details. */
 
 namespace {
 constexpr auto LOCK_YOUNG_TXN_WAIT = std::chrono::milliseconds(2);
-constexpr auto LOCK_OLDER_TXN_WAIT = std::chrono::milliseconds(50);
 }
 
 bool LockManager::lock_shared_on_record(Transaction* txn, const Rid& rid, int tab_fd) {
@@ -171,11 +170,7 @@ bool LockManager::lock(Transaction* txn, const LockDataId& lock_data_id, LockMod
                                                     AbortReason::DEADLOCK_PREVENTION);
                 }
             } else {
-                q.cv_.wait_for(lk, LOCK_OLDER_TXN_WAIT);
-                if (!is_compatible_with_granted(q, txn->get_transaction_id(), upgraded)) {
-                    throw TransactionAbortException(txn->get_transaction_id(),
-                                                    AbortReason::DEADLOCK_PREVENTION);
-                }
+                q.cv_.wait(lk);
             }
         }
         self->lock_mode_ = upgraded;
@@ -192,11 +187,7 @@ bool LockManager::lock(Transaction* txn, const LockDataId& lock_data_id, LockMod
                                                 AbortReason::DEADLOCK_PREVENTION);
             }
         } else {
-            q.cv_.wait_for(lk, LOCK_OLDER_TXN_WAIT);
-            if (!is_compatible_with_granted(q, txn->get_transaction_id(), mode)) {
-                throw TransactionAbortException(txn->get_transaction_id(),
-                                                AbortReason::DEADLOCK_PREVENTION);
-            }
+            q.cv_.wait(lk);
         }
     }
 
